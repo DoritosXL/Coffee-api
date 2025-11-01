@@ -72,9 +72,8 @@ export async function coffeePlacesRoutes(fastify: FastifyInstance) {
   // Validate and parse the mock data
   const cafes: CoffeePlace[] = mockCafes.filter(isValidCoffeePlace);
 
-  fastify.get(
-    '/coffee-places',
-    {
+  // Define the route schema (shared between both endpoints)
+  const routeSchema = {
       schema: {
         description: 'Get coffee places with optional filtering, pagination, and random selection',
         tags: ['coffee-places'],
@@ -181,8 +180,10 @@ export async function coffeePlacesRoutes(fastify: FastifyInstance) {
           },
         },
       },
-    },
-    async (request: FastifyRequest, reply: FastifyReply) => {
+    };
+
+  // Define the route handler (shared between both endpoints)
+  const routeHandler = async (request: FastifyRequest, reply: FastifyReply) => {
       try {
         // Parse and validate query parameters
         const queryParams = queryParamsSchema.parse(request.query);
@@ -234,7 +235,10 @@ export async function coffeePlacesRoutes(fastify: FastifyInstance) {
           message: error instanceof Error ? error.message : 'Unknown error',
         });
       }
-    }
-  );
+    };
+
+  // Register the route at both paths for backward compatibility
+  fastify.get('/coffee-places', routeSchema, routeHandler);
+  fastify.get('/places', routeSchema, routeHandler);
 }
 

@@ -4,3 +4,10 @@ dist/
 .env
 .DS_Store
 
+# Test files
+test-*.js
+test-*.ps1
+
+# Claude Code
+.claude/
+

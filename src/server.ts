@@ -1,7 +1,9 @@
 import Fastify from 'fastify';
 import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
+import fastifyRateLimit from '@fastify/rate-limit';
 import { coffeePlacesRoutes } from './routes/coffeePlaces';
+import { rateLimitConfig } from './config/rateLimit';
 
 /**
  * Creates and configures the Fastify application instance
@@ -55,6 +57,10 @@ export async function createApp() {
     staticCSP: true,
     transformStaticCSP: (header) => header,
   });
+
+  // Register rate limiting - protects all routes from abuse
+  // Uses in-memory storage by default, or Redis if REDIS_URL is configured
+  await fastify.register(fastifyRateLimit, rateLimitConfig);
 
   // Register routes
   await fastify.register(coffeePlacesRoutes, { prefix: '/api' });

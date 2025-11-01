@@ -19,9 +19,8 @@ export default async function handler(
       await appInstance.ready();
     }
 
-    // Build the full URL with query string
-    const queryString = new URLSearchParams(req.query as Record<string, string>).toString();
-    const url = queryString ? `${req.url}?${queryString}` : req.url || '/';
+    // Use the URL as-is (it already contains query string)
+    const url = req.url || '/';
     const method = (req.method || 'GET').toUpperCase();
 
     // Prepare headers (remove host to avoid conflicts)
