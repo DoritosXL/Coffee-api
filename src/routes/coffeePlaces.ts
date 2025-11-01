@@ -3,6 +3,17 @@ import { ZodError } from 'zod';
 import { queryParamsSchema, CoffeePlace } from '../schema/coffeePlaceSchema';
 import mockCafes from '../data/mockCafes.json';
 
+const MIN_RESPONSE_DELAY_MS = 1_000;
+
+function waitForMinimumDelay(startTime: number) {
+  const elapsed = Date.now() - startTime;
+  const remaining = MIN_RESPONSE_DELAY_MS - elapsed;
+  if (remaining <= 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve) => setTimeout(resolve, remaining));
+}
+
 // Type guard to ensure data matches schema
 function isValidCoffeePlace(data: unknown): data is CoffeePlace {
   return (
@@ -184,6 +195,7 @@ export async function coffeePlacesRoutes(fastify: FastifyInstance) {
 
   // Define the route handler (shared between both endpoints)
   const routeHandler = async (request: FastifyRequest, reply: FastifyReply) => {
+      const startTime = Date.now();
       try {
         // Parse and validate query parameters
         const queryParams = queryParamsSchema.parse(request.query);
@@ -199,6 +211,7 @@ export async function coffeePlacesRoutes(fastify: FastifyInstance) {
             });
           }
           const randomIndex = Math.floor(Math.random() * filtered.length);
+          await waitForMinimumDelay(startTime);
           return reply.send({
             meta: { total: 1, page: 1, pageSize: 1 },
             data: [filtered[randomIndex]],
@@ -213,6 +226,7 @@ export async function coffeePlacesRoutes(fastify: FastifyInstance) {
         const endIndex = startIndex + limit;
         const paginated = filtered.slice(startIndex, endIndex);
 
+        await waitForMinimumDelay(startTime);
         return reply.send({
           meta: {
             total,
