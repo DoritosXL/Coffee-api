@@ -1,11 +1,12 @@
 # Coffee Places API
 
-A TypeScript REST API built with Fastify and Zod for querying coffee places in the Netherlands, powered by real data from OpenStreetMap.
+A TypeScript REST API built with Fastify and Zod for querying coffee places in the Netherlands, powered by real data from OpenStreetMap and optionally enriched with Google Places ratings.
 
 ## 🌟 Features
 
 - **5,900+ Real Coffee Places** from OpenStreetMap Netherlands
 - **Rich Data**: Coordinates, addresses, contact info, amenities
+- **Google Places Integration**: Real user ratings, reviews, price levels (optional)
 - **Fast Queries**: PostgreSQL database with optimized indexes
 - **Type-Safe**: Built with TypeScript and Zod validation
 - **Well-Documented**: Interactive Swagger UI
@@ -20,6 +21,7 @@ A TypeScript REST API built with Fastify and Zod for querying coffee places in t
 - Node.js 18+
 - Supabase account (free tier works!)
 - npm or yarn
+- (Optional) Google Cloud account for Places API enrichment
 
 ### Installation
 
@@ -37,6 +39,11 @@ cp .env.example .env
 2. Add your Supabase database URL:
 ```env
 DATABASE_URL="postgresql://postgres.xxxxx:[PASSWORD]@aws-x-xx-xxxx.pooler.supabase.com:5432/postgres"
+```
+
+3. (Optional) Add Google Places API key for ratings enrichment:
+```env
+GOOGLE_PLACES_API_KEY="your_api_key_here"
 ```
 
 See [SETUP_GUIDE.md](SETUP_GUIDE.md) for detailed instructions.
@@ -88,6 +95,21 @@ Interactive API documentation is available via Swagger UI at:
 
 You can test all endpoints directly from the Swagger UI interface.
 
+### API Response Fields
+
+The API returns Google Places data when available:
+
+```json
+{
+  "rating": 4.5,           // Main rating (from Google if available, otherwise 0)
+  "googleRating": 4.5,      // Explicit Google rating (optional)
+  "googleReviewCount": 234, // Number of reviews (optional)
+  "googlePriceLevel": 2     // Price level 1-4 (optional)
+}
+```
+
+See [GOOGLE_PLACES_DATA_FIELDS.md](GOOGLE_PLACES_DATA_FIELDS.md) for details.
+
 ---
 
 ## 🔌 API Endpoints
@@ -101,7 +123,7 @@ Retrieve coffee places with optional filtering, pagination, and random selection
 | Parameter | Type | Description |
 |-----------|------|-------------|
 | `city` | string | Filter by city name (case-insensitive) |
-| `minRating` | number | Minimum quality score (0-5 scale) |
+| `minRating` | number | Minimum rating (0-5 scale, Google ratings only) |
 | `openAfter` | HH:mm | Filter places that open at or before this time |
 | `openBefore` | HH:mm | Filter places that close at or after this time |
 | `tags` | string | Comma-separated tags (all must match) |
@@ -135,7 +157,10 @@ Retrieve coffee places with optional filtering, pagination, and random selection
       "website": "https://coffeecompany.nl",
       "hasWifi": true,
       "hasOutdoorSeating": true,
-      "qualityScore": 9
+      "qualityScore": 9,
+      "googleRating": 4.5,
+      "googleReviewCount": 234,
+      "googlePriceLevel": 2
     }
   ]
 }
@@ -191,7 +216,8 @@ coffee-api/
 │   ├── index.ts                    # Local server entry point
 │   ├── server.ts                   # Fastify app factory
 │   ├── routes/
-│   │   └── coffeePlaces.ts         # API route handlers
+│   │   ├── coffeePlaces.ts         # API route handlers
+│   │   └── cities.ts               # Cities endpoint
 │   ├── schema/
 │   │   └── coffeePlaceSchema.ts    # Zod validation schemas
 │   ├── config/
@@ -200,9 +226,11 @@ coffee-api/
 │   │   └── client.ts               # Prisma client singleton
 │   ├── scripts/
 │   │   ├── syncOSM.ts              # OpenStreetMap sync script
+│   │   ├── syncGooglePlaces.ts    # Google Places enrichment script
 │   │   └── utils/
 │   │       ├── overpass.ts         # Overpass API client
-│   │       └── transform.ts        # Data transformation
+│   │       ├── transform.ts        # Data transformation
+│   │       └── googlePlaces.ts     # Google Places API client
 │   └── data/
 │       └── mockCafes.json          # Legacy mock data
 ├── api/
@@ -213,6 +241,9 @@ coffee-api/
 ├── SETUP_GUIDE.md                  # Detailed setup instructions
 ├── API_MIGRATION_GUIDE.md          # Schema migration guide
 ├── QUICK_START.md                  # 15-minute quick start
+├── GOOGLE_PLACES_PLAN.md           # Google Places integration guide
+├── GOOGLE_PLACES_COSTS.md          # Cost analysis
+├── GOOGLE_PLACES_COMMANDS.md      # Command reference
 ├── package.json
 ├── tsconfig.json
 └── vercel.json                     # Vercel deployment config
@@ -235,6 +266,12 @@ npm run db:push          # Push schema changes to database
 npm run sync:osm         # Sync all Netherlands cafes from OSM
 npm run sync:osm -- --city Amsterdam  # Sync specific city
 npm run sync:osm -- --dry-run         # Preview without inserting
+
+# Google Places Enrichment (⚠️ Makes real API calls - costs money!)
+npm run sync:google -- --dry-run                    # ALWAYS dry-run first!
+npm run sync:google -- --dry-run --limit 10         # Preview 10 cafes
+npm run sync:google -- --city Amsterdam --limit 50  # Process 50 cafes
+npm run sync:google -- --missing-only              # Process all missing (max 5,000)
 
 # Production
 npm run build            # Build TypeScript
@@ -263,28 +300,78 @@ npm start                # Start production server
 
 ### Rating System
 
-Since OpenStreetMap doesn't have user ratings, we calculate a **quality score** based on data completeness:
+**Rating System Update:**
+- If Google Places rating is available: Uses `google_rating` (real user ratings)
+- Otherwise: Returns `0` (quality score no longer used for rating)
+- Quality score is available separately as `qualityScore` field (0-10)
 
-| Score | Criteria |
-|-------|----------|
-| +2 | Has website |
-| +1 | Has phone number |
-| +2 | Has opening hours |
-| +1 | Has outdoor seating |
-| +1 | Has WiFi |
-| +1 | Has wheelchair access |
-| +1 | Has complete address |
+### Google Places Enrichment (Optional)
 
-**API returns**: `rating = qualityScore / 2` (converted to 0-5 scale for compatibility)
+✅ **Now Available!** Enrich cafes with real Google Places ratings and reviews.
 
-### Phase 2: Google Places (Optional)
-
-Future enhancement to add real user ratings:
-- Real ratings from Google (1-5 stars)
+**Data added:**
+- Real user ratings (1.0-5.0 stars)
 - Review counts
-- Price levels
-- Photos
-- **Cost**: ~$85 initial + $20-30/month for updates
+- Price levels (1-4, $-$$$$)
+- Photo references
+
+**Cost:**
+- **First 5,000 requests/month**: FREE ✅
+- After 5,000: $17 per 1,000 requests
+- See [GOOGLE_PLACES_COSTS.md](GOOGLE_PLACES_COSTS.md) for detailed cost breakdown
+
+**Setup Required:**
+
+1. **Get Google Places API Key:**
+   - Go to [Google Cloud Console](https://console.cloud.google.com/)
+   - Create or select a project
+   - Enable [Places API (New)](https://console.cloud.google.com/apis/library/places-backend.googleapis.com)
+   - Create API key in [Credentials](https://console.cloud.google.com/apis/credentials)
+   - **Important:** Set up billing (required for Places API, but first 5,000/month are free)
+
+2. **Monitor Costs:**
+   - View API usage in [Google Cloud Console - Billing](https://console.cloud.google.com/billing)
+   - Set up billing alerts: [Billing Budgets](https://console.cloud.google.com/billing/budgets)
+   - Check Places API quotas: [API & Services - Quotas](https://console.cloud.google.com/apis/api/places-backend.googleapis.com/quotas)
+
+3. **Add to `.env` file:**
+   ```env
+   GOOGLE_PLACES_API_KEY="your_api_key_here"
+   ```
+
+4. **See full guide:**
+   - [GOOGLE_PLACES_PLAN.md](GOOGLE_PLACES_PLAN.md) - Complete setup instructions
+   - [GOOGLE_PLACES_COMMANDS.md](GOOGLE_PLACES_COMMANDS.md) - Quick command reference
+
+**⚠️ CRITICAL: Always Dry-Run First!**
+
+```bash
+# Step 1: ALWAYS preview what will happen (FREE, no API calls)
+npm run sync:google -- --dry-run
+
+# Step 2: Preview specific city with limit
+npm run sync:google -- --dry-run --city Amsterdam --limit 10
+
+# Step 3: If preview looks good, run with small batch first
+npm run sync:google -- --city Amsterdam --limit 10
+
+# Step 4: Gradually increase batch size
+npm run sync:google -- --city Amsterdam --limit 50
+```
+
+**Important Safety Features:**
+- ✅ **Manual execution only** - Script blocks in CI/CD to prevent accidental charges
+- ✅ **Default limit: 5,000 cafes** - Stays within free tier
+- ✅ **Incremental sync** - Only processes new/changed cafes
+- ✅ **Cost tracking** - Shows estimated costs before and actual costs after
+- ✅ **Progress reporting** - Real-time updates every 50 cafes
+
+**Cost Optimization:**
+- Process up to **5,000 cafes/month for FREE** (resets monthly)
+- Spread large datasets across multiple months
+- Use `--missing-only` to only fetch new cafes
+- Use `--city` to process specific cities
+- See [GOOGLE_PLACES_COSTS.md](GOOGLE_PLACES_COSTS.md) for detailed strategies
 
 ---
 
@@ -302,8 +389,9 @@ Can be configured with Redis for distributed systems. See [RATE_LIMITING.md](RAT
 
 1. Push to GitHub
 2. Import to Vercel
-3. Add environment variable:
+3. Add environment variables:
    - `DATABASE_URL` = your Supabase connection string
+   - `GOOGLE_PLACES_API_KEY` = your Google Places API key (optional)
 4. Deploy!
 
 The API automatically works as serverless functions.
@@ -325,6 +413,10 @@ Works on any Node.js hosting:
 - **[QUICK_START.md](QUICK_START.md)** - 15-minute quick start
 - **[API_MIGRATION_GUIDE.md](API_MIGRATION_GUIDE.md)** - Schema changes and frontend migration
 - **[RATE_LIMITING.md](RATE_LIMITING.md)** - Rate limiting configuration
+- **[GOOGLE_PLACES_PLAN.md](GOOGLE_PLACES_PLAN.md)** - Google Places integration guide
+- **[GOOGLE_PLACES_COSTS.md](GOOGLE_PLACES_COSTS.md)** - Cost analysis and optimization
+- **[GOOGLE_PLACES_COMMANDS.md](GOOGLE_PLACES_COMMANDS.md)** - Quick command reference
+- **[GOOGLE_PLACES_DATA_FIELDS.md](GOOGLE_PLACES_DATA_FIELDS.md)** - What data we fetch and store
 
 ---
 
@@ -383,6 +475,7 @@ ISC
 - **Fastify** for the excellent web framework
 - **Prisma** for type-safe database access
 - **Supabase** for managed PostgreSQL hosting
+- **Google Places API** for ratings and reviews
 
 ---
 
@@ -392,11 +485,11 @@ ISC
 - [x] 5,900+ real cafes
 - [x] Quality scoring system
 - [x] Production deployment
-- [ ] Google Places enrichment (Phase 2)
-- [ ] User ratings API
+- [x] Google Places enrichment (ratings, reviews, prices)
 - [ ] Proximity search ("cafes near me")
 - [ ] Real-time opening status
 - [ ] Admin dashboard
+- [ ] Photo display using Google photo references
 
 ---
 
@@ -405,6 +498,7 @@ ISC
 - Check [SETUP_GUIDE.md](SETUP_GUIDE.md) for setup help
 - Review [API_MIGRATION_GUIDE.md](API_MIGRATION_GUIDE.md) for schema details
 - Test with Swagger UI at `/docs`
+- See [GOOGLE_PLACES_PLAN.md](GOOGLE_PLACES_PLAN.md) for Google Places setup
 
 ---
 

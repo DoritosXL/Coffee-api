@@ -20,12 +20,9 @@ function transformDatabaseRecord(record: any): any {
     id: record.id,
     name: record.name,
     city: getCityNameInDutch(record.address_city) || 'Unknown',
-    // Convert quality_score (0-10) to rating (0-5) scale
-    rating: record.google_rating
-      ? Number(record.google_rating)
-      : record.quality_score
-        ? Number(record.quality_score) / 2
-        : 0,
+    // Rating: Use Google rating if available, otherwise return 0
+    // Quality score is now separate (in qualityScore field) and not used for rating
+    rating: record.google_rating ? Number(record.google_rating) : 0,
     openHours: {
       start: record.opening_hours_start || '08:00',
       end: record.opening_hours_end || '18:00',
@@ -236,14 +233,10 @@ export async function coffeePlacesRoutes(fastify: FastifyInstance) {
         params.push(canonicalCity);
       }
 
-      // Filter by minimum rating (convert from 0-5 scale to quality_score 0-10 scale)
+      // Filter by minimum rating (only Google ratings, 0-5 scale)
       if (queryParams.minRating !== undefined) {
-        const minQualityScore = queryParams.minRating * 2;
-        whereConditions.push(`(
-          COALESCE(google_rating, 0) >= $${params.length + 1}::decimal
-          OR quality_score >= $${params.length + 2}
-        )`);
-        params.push(queryParams.minRating, minQualityScore);
+        whereConditions.push(`COALESCE(google_rating, 0) >= $${params.length + 1}::decimal`);
+        params.push(queryParams.minRating);
       }
 
       // Filter by opening hours

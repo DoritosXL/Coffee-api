@@ -10,7 +10,7 @@
     "postinstall": "prisma generate",
     "vercel-build": "npm run build",
     "sync:osm": "ts-node src/scripts/syncOSM.ts",
-    "sync:google": "ts-node src/scripts/syncGoogle.ts",
+    "sync:google": "ts-node src/scripts/syncGooglePlaces.ts",
     "db:generate": "prisma generate",
     "db:pull": "prisma db pull",
     "db:push": "prisma db push"
@@ -27,6 +27,7 @@
     "@fastify/rate-limit": "^9.1.0",
     "@fastify/swagger": "^8.15.0",
     "@fastify/swagger-ui": "^4.2.0",
+    "@googlemaps/google-maps-services-js": "^3.3.50",
     "@prisma/client": "^6.18.0",
     "@vercel/node": "^3.0.7",
     "axios": "^1.13.1",
