@@ -1,0 +1,72 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+/// This model contains an expression index which requires additional setup for migrations. Visit https://pris.ly/d/expression-indexes for more info.
+model coffee_places {
+  id                      String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  osm_id                  BigInt?   @unique
+  osm_type                String?   @db.VarChar(20)
+  name                    String    @db.VarChar(255)
+  lat                     Decimal   @db.Decimal(10, 7)
+  lon                     Decimal   @db.Decimal(10, 7)
+  address_street          String?   @db.VarChar(255)
+  address_housenumber     String?   @db.VarChar(20)
+  address_postcode        String?   @db.VarChar(20)
+  address_city            String?   @db.VarChar(100)
+  address_full            String?
+  phone                   String?   @db.VarChar(50)
+  website                 String?   @db.VarChar(500)
+  email                   String?   @db.VarChar(255)
+  opening_hours           String?
+  opening_hours_start     String?   @db.VarChar(5)
+  opening_hours_end       String?   @db.VarChar(5)
+  has_wifi                Boolean?  @default(false)
+  has_outdoor_seating     Boolean?  @default(false)
+  has_wheelchair_access   Boolean?  @default(false)
+  has_takeaway            Boolean?  @default(false)
+  has_delivery            Boolean?  @default(false)
+  smoking                 String?   @db.VarChar(20)
+  tags                    String[]
+  quality_score           Int?      @default(0)
+  is_verified             Boolean?  @default(false)
+  google_place_id         String?   @unique @db.VarChar(255)
+  google_rating           Decimal?  @db.Decimal(2, 1)
+  google_review_count     Int?
+  google_price_level      Int?
+  google_photo_references String[]
+  data_source             String?   @default("osm") @db.VarChar(20)
+  osm_last_sync           DateTime? @db.Timestamptz(6)
+  google_last_sync        DateTime? @db.Timestamptz(6)
+  created_at              DateTime? @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime? @default(now()) @db.Timestamptz(6)
+
+  @@index([address_city], map: "idx_coffee_places_city")
+  @@index([osm_id], map: "idx_coffee_places_osm_id")
+  @@index([quality_score], map: "idx_coffee_places_quality")
+  @@index([tags], map: "idx_coffee_places_tags", type: Gin)
+}
+
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model sync_logs {
+  id                String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  sync_type         String    @db.VarChar(50)
+  status            String    @db.VarChar(20)
+  records_processed Int?      @default(0)
+  records_added     Int?      @default(0)
+  records_updated   Int?      @default(0)
+  error_message     String?
+  started_at        DateTime? @default(now()) @db.Timestamptz(6)
+  completed_at      DateTime? @db.Timestamptz(6)
+  metadata          Json?
+
+  @@index([started_at(sort: Desc)], map: "idx_sync_logs_started_at")
+  @@index([sync_type], map: "idx_sync_logs_type")
+}

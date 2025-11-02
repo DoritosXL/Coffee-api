@@ -11,3 +11,5 @@ test-*.ps1
 # Claude Code
 .claude/
 
+
+/src/generated/prisma
