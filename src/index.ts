@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { createApp } from './server';
 
 // Start server for local development
