@@ -5,8 +5,9 @@
   "main": "dist/index.js",
   "scripts": {
     "dev": "ts-node-dev --respawn src/index.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/index.js",
+    "postinstall": "prisma generate",
     "vercel-build": "npm run build",
     "sync:osm": "ts-node src/scripts/syncOSM.ts",
     "sync:google": "ts-node src/scripts/syncGoogle.ts",
