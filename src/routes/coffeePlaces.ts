@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { ZodError } from 'zod';
 import { queryParamsSchema, CoffeePlace } from '../schema/coffeePlaceSchema';
 import prisma from '../db/client';
+import { getCanonicalCityName, getCityNameInDutch } from '../utils/cityAliases';
 
 // Helper function to compare time strings (HH:mm format)
 function compareTime(time1: string, time2: string): number {
@@ -18,7 +19,7 @@ function transformDatabaseRecord(record: any): any {
     // Core fields (always present - backward compatible)
     id: record.id,
     name: record.name,
-    city: record.address_city || 'Unknown',
+    city: getCityNameInDutch(record.address_city) || 'Unknown',
     // Convert quality_score (0-10) to rating (0-5) scale
     rating: record.google_rating
       ? Number(record.google_rating)
@@ -50,7 +51,7 @@ function transformDatabaseRecord(record: any): any {
       ...(record.address_street && { street: record.address_street }),
       ...(record.address_housenumber && { housenumber: record.address_housenumber }),
       ...(record.address_postcode && { postcode: record.address_postcode }),
-      ...(record.address_city && { city: record.address_city }),
+      ...(record.address_city && { city: getCityNameInDutch(record.address_city) }),
       ...(record.address_full && { full: record.address_full }),
     };
   }
@@ -227,10 +228,12 @@ export async function coffeePlacesRoutes(fastify: FastifyInstance) {
       const whereConditions: any[] = [];
       const params: any[] = [];
 
-      // Filter by city (case-insensitive)
+      // Filter by city (case-insensitive, with alias support)
       if (queryParams.city) {
+        // Convert any city alias to canonical name (e.g., "The Hague" -> "'s-Gravenhage")
+        const canonicalCity = getCanonicalCityName(queryParams.city);
         whereConditions.push(`LOWER(address_city) = LOWER($${params.length + 1})`);
-        params.push(queryParams.city);
+        params.push(canonicalCity);
       }
 
       // Filter by minimum rating (convert from 0-5 scale to quality_score 0-10 scale)

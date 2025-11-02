@@ -3,6 +3,7 @@ import fastifySwagger from '@fastify/swagger';
 import fastifySwaggerUi from '@fastify/swagger-ui';
 import fastifyRateLimit from '@fastify/rate-limit';
 import { coffeePlacesRoutes } from './routes/coffeePlaces';
+import { citiesRoutes } from './routes/cities';
 import { rateLimitConfig } from './config/rateLimit';
 
 /**
@@ -64,6 +65,7 @@ export async function createApp() {
 
   // Register routes
   await fastify.register(coffeePlacesRoutes, { prefix: '/api' });
+  await fastify.register(citiesRoutes, { prefix: '/api' });
 
   return fastify;
 }
